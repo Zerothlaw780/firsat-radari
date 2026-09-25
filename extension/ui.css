@@ -1,0 +1,83 @@
+/* Popup ve ayarlar sayfasının ortak renkleri */
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f5f6f8;
+  --bg-hover: #f0f2f5;
+  --line: #e4e7ec;
+  --text: #1d2330;
+  --muted: #667085;
+  --accent: #ff5a1f;
+  --accent-soft: #fff1ea;
+  --accent-text: #c2410c;
+  --ok: #16a34a;
+  --warn-bg: #fff7e6;
+  --warn-line: #f5d08a;
+  --warn-text: #8a5a00;
+  --watch-bg: #fff4d6;
+  --watch-text: #8a5a00;
+  --radius: 10px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d;
+    --bg-soft: #1e2128;
+    --bg-hover: #242832;
+    --line: #2d313b;
+    --text: #e8eaef;
+    --muted: #98a1b3;
+    --accent: #ff7a45;
+    --accent-soft: #3a2218;
+    --accent-text: #ffb08c;
+    --ok: #4ade80;
+    --warn-bg: #2e2513;
+    --warn-line: #5c4a1f;
+    --warn-text: #f3cf80;
+    --watch-bg: #3a3016;
+    --watch-text: #f7d67a;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+button:hover { background: var(--bg-hover); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.primary:hover { filter: brightness(1.05); }
+button:disabled { opacity: .55; cursor: default; }
+
+input[type="text"], input[type="url"], input[type="search"], input[type="number"], select, textarea {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 6px 9px;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+a { color: inherit; }
+
+.dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--c, var(--muted));
+  flex: none;
+}

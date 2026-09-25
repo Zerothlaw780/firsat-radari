@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fırsat Radarı · Ayarlar</title>
+  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body class="options">
+  <div class="wrap">
+    <header class="head">
+      <img src="icons/icon48.png" alt="" width="36" height="36">
+      <div>
+        <h1>Fırsat Radarı</h1>
+        <p class="muted">Kaynaklar, takip listesi ve filtreler. Değişiklikler otomatik kaydedilir.</p>
+      </div>
+      <span id="saved" class="saved" aria-live="polite"></span>
+    </header>
+
+    <section class="card">
+      <h2>Takip listesi</h2>
+      <p class="muted">Her satır bir kural. Yeni açılan bir konu kurala uyarsa bildirim gelir ve listede ⭐ ile işaretlenir.
+        Türkçe karakterler fark etmez (<code>monitor</code> = <code>monitör</code>).</p>
+      <div class="split">
+        <textarea id="watchText" rows="8" spellcheck="false"></textarea>
+        <div class="help">
+          <div><code>monitör 27</code> <span>ikisi de başlıkta geçmeli</span></div>
+          <div><code>ssd &lt;3000</code> <span>fiyatı 3000 TL ve altı</span></div>
+          <div><code>9070 xt -kılıf</code> <span>"kılıf" geçenleri hariç tut</span></div>
+          <div><code>ekran kartı &lt;25k</code> <span>25.000 TL ve altı</span></div>
+          <div><code># not</code> <span>yorum satırı</span></div>
+        </div>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="notify"> Eşleşme olunca masaüstü bildirimi gönder</label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Kaynaklar</h2>
+      <p class="muted">Hazır kaynakları açıp kapatabilirsin. Başka bir forumun konu listesi sayfasını ya da RSS adresini de ekleyebilirsin.</p>
+      <table class="sources">
+        <thead><tr><th></th><th>Kaynak</th><th>Durum</th><th></th></tr></thead>
+        <tbody id="sources"></tbody>
+      </table>
+
+      <details class="add" id="addBox">
+        <summary>+ Yeni kaynak ekle</summary>
+        <div class="add-form">
+          <label>Ad <input type="text" id="newName" placeholder="ör. PC Hocası Fırsatlar"></label>
+          <label>Adres <input type="url" id="newUrl" placeholder="https://forum.ornek.com/forumlar/firsatlar/"></label>
+          <label>Tür
+            <select id="newType"></select>
+          </label>
+          <div class="add-actions">
+            <button id="testBtn">Test et</button>
+            <button id="addBtn" class="primary">Ekle</button>
+          </div>
+          <div id="testResult" class="test-result" hidden></div>
+          <p class="muted small">XenForo ve vBulletin forumlarının bölüm sayfaları, DonanımHaber bölümleri ve RSS/Atom akışları çalışır.
+            XenForo bölümlerinde adresin sonuna <code>?order=post_date&amp;direction=desc</code> eklersen en yeni konular üstte gelir.</p>
+        </div>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>Filtreler</h2>
+      <div class="grid">
+        <label class="check"><input type="checkbox" id="hideEnded"> "İndirim bitti" / "❌" / "[BİTTİ]" konularını gizle</label>
+        <label class="inline">Son <input type="number" id="maxAgeDays" min="0" max="60"> günden eski konuları gizle <span class="muted">(0 = kapalı)</span></label>
+        <label class="inline"><input type="number" id="maxReplies" min="0" max="100000"> cevaptan uzun konuları gizle <span class="muted">("ana konu" tarzı dev başlıklar, 0 = kapalı)</span></label>
+      </div>
+      <div class="two">
+        <label class="stack"><span>Başlıkta bunlar geçerse gizle <span class="muted">(satır başına bir tane)</span></span>
+          <textarea id="blockWords" rows="5" spellcheck="false"></textarea>
+        </label>
+        <label class="stack"><span>Bu kullanıcıların konularını gizle <span class="muted">(tam kullanıcı adı)</span></span>
+          <textarea id="blockAuthors" rows="5" spellcheck="false"></textarea>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Tarama</h2>
+      <label class="inline">Her
+        <select id="intervalMin">
+          <option value="5">5</option>
+          <option value="10">10</option>
+          <option value="15">15</option>
+          <option value="30">30</option>
+          <option value="60">60</option>
+        </select>
+        dakikada bir kontrol et
+      </label>
+      <p class="muted small">Tarama tarayıcı açıkken yapılır. Forumları yormamak için 5 dakikadan sık tarama yapılmaz.</p>
+      <div class="row">
+        <button id="scanNow">Şimdi tara</button>
+        <button id="resetData" class="ghost">Kayıtlı fırsatları temizle</button>
+      </div>
+    </section>
+  </div>
+  <script type="module" src="options.js"></script>
+</body>
+</html>
