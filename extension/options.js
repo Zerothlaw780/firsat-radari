@@ -30,7 +30,7 @@ function schedulePersist() {
 // ---------- form alanları ----------
 const TEXT_FIELDS = ['watchText', 'blockWords', 'blockAuthors'];
 const NUM_FIELDS = ['maxAgeDays', 'maxReplies', 'intervalMin'];
-const BOOL_FIELDS = ['notify', 'hideEnded'];
+const BOOL_FIELDS = ['notify', 'hideEnded', 'mergeDuplicates', 'showPriceHistory'];
 
 function fillForm() {
   for (const k of TEXT_FIELDS) $(k).value = settings[k] ?? '';

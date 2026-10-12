@@ -1,6 +1,7 @@
 import { ext } from './lib/ext.js';
 import { withDefaults } from './lib/core.js';
 import { norm, visibleItems, parseWatchList, findWatch, formatPrice } from './lib/filters.js';
+import { groupDeals, priceInsight } from './lib/products.js';
 
 const $ = sel => document.querySelector(sel);
 const els = {
@@ -61,6 +62,16 @@ function highlight(title, terms) {
 // "🔥İndirim" gibi her konuda olan etiketler bilgi taşımıyor
 const isNoiseLabel = l => /^[^a-z0-9]*indirim[^a-z0-9]*$/.test(norm(l));
 
+/** Fiyat geçmişi rozeti. Geçmiş, eklentinin kurulduğu günden beri gördükleriyle sınırlı. */
+function insightHtml(ins, now) {
+  if (!ins) return '';
+  const when = ago(ins.minDate, now);
+  const detail = `Bu modelin daha önce görülen en düşük fiyatı: ${formatPrice(ins.min)} (${when} önce). Toplam ${ins.count} kayıt.`;
+  if (ins.kind === 'lowest') return `<span class="hist low" title="${esc(detail)}">📉 Görülen en düşük</span>`;
+  if (ins.kind === 'same') return `<span class="hist same" title="${esc(detail)}">Önceki dip fiyat</span>`;
+  return `<span class="hist high" title="${esc(detail)}">Daha önce ${esc(formatPrice(ins.min))}</span>`;
+}
+
 // ---------- veri ----------
 async function fetchData() {
   const raw = await ext.storage.local.get(['settings', 'state', 'status', 'meta', 'visited']);
@@ -73,6 +84,7 @@ async function fetchData() {
     status: raw.status || {},
     meta: raw.meta || {},
     visited: new Set(raw.visited || []),
+    history: raw.state?.history || {},
     watches: parseWatchList(settings.watchText)
   };
 }
@@ -122,25 +134,41 @@ function render() {
     `<div><b>${esc(s.name)}:</b> ${esc(status[s.id].error)} <a href="${esc(s.url)}" data-open="${esc(s.url)}">Siteyi aç</a></div>`
   ).join('');
 
-  // Liste
-  let list = searched;
-  if (ui.filter === 'watch') list = list.filter(it => it._watch);
-  else if (ui.filter !== 'all') list = list.filter(it => it.sourceId === ui.filter);
-
+  // Liste: önce sırala, sonra aynı fırsatı farklı forumlardan topla
   const byDate = (a, b) => b.date - a.date;
-  if (ui.sort === 'hot') list.sort((a, b) => (b.replies ?? -1) - (a.replies ?? -1) || byDate(a, b));
-  else if (ui.sort === 'cheap') list.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity) || byDate(a, b));
-  else list.sort(byDate);
+  const sortFn =
+    ui.sort === 'hot' ? (a, b) => (b.replies ?? -1) - (a.replies ?? -1) || byDate(a, b)
+    : ui.sort === 'cheap' ? (a, b) => (a.price ?? Infinity) - (b.price ?? Infinity) || byDate(a, b)
+    : byDate;
+  const sorted = [...searched].sort(sortFn);
+  let groups = settings.mergeDuplicates ? groupDeals(sorted) : sorted.map(main => ({ main, others: [] }));
+  const members = g => [g.main, ...g.others];
+  if (ui.filter === 'watch') {
+    groups = groups.filter(g => members(g).some(i => i._watch));
+  } else if (ui.filter !== 'all') {
+    // Kaynak filtresinde o kaynağın konusu başa geçer, diğer forumlar "ayrıca" satırında kalır
+    groups = groups
+      .filter(g => members(g).some(i => i.sourceId === ui.filter))
+      .map(g => {
+        if (g.main.sourceId === ui.filter) return g;
+        const pick = g.others.find(o => o.sourceId === ui.filter);
+        return { main: pick, others: members(g).filter(i => i !== pick) };
+      });
+  }
 
-  const shown = list.slice(0, 250);
-  els.list.innerHTML = shown.map(it => {
+  const shown = groups.slice(0, 250);
+  els.list.innerHTML = shown.map(g => {
+    const it = g.main;
+    const all = members(g);
     const src = srcById[it.sourceId] || { name: it.sourceId, color: '#999' };
-    const isNew = !it.initial && it.firstSeen > openedLastViewed;
+    const watch = all.map(i => i._watch).find(Boolean);
+    const isNew = all.some(i => !i.initial && i.firstSeen > openedLastViewed);
     const labels = (it.labels || []).filter(l => !isNoiseLabel(l)).slice(0, 2);
-    const hlTerms = [...qTerms, ...(it._watch?.terms || [])];
-    const cls = ['deal', isNew && 'is-new', it._watch && 'is-watch', data.visited.has(it.id) && 'visited'].filter(Boolean).join(' ');
+    const hlTerms = [...qTerms, ...(watch?.terms || [])];
+    const insight = settings.showPriceHistory ? priceInsight(it, data.history) : null;
+    const cls = ['deal', isNew && 'is-new', watch && 'is-watch', data.visited.has(it.id) && 'visited'].filter(Boolean).join(' ');
     return `<li class="${cls}">
-      <a href="${esc(it.url)}" data-id="${esc(it.id)}" title="${esc(it.title)}">
+      <a class="card" href="${esc(it.url)}" data-id="${esc(it.id)}" title="${esc(it.title)}">
         <div class="meta">
           <span class="src"><span class="dot" style="--c:${esc(src.color)}"></span>${esc(src.name)}</span>
           <span class="sep">·</span><span>${ago(it.date, now)}</span>
@@ -150,11 +178,16 @@ function render() {
         <div class="title">${highlight(it.title, hlTerms)}</div>
         <div class="sub">
           ${it.price != null ? `<span class="price">${esc(formatPrice(it.price))}</span>` : ''}
-          ${it._watch ? `<span class="watch">⭐ ${esc(it._watch.raw)}</span>` : ''}
+          ${insightHtml(insight, now)}
+          ${watch ? `<span class="watch">⭐ ${esc(watch.raw)}</span>` : ''}
           ${it.replies != null ? `<span>💬 ${it.replies}</span>` : ''}
           ${it.author ? `<span>${esc(it.author)}</span>` : ''}
         </div>
       </a>
+      ${g.others.length ? `<div class="also"><span>Ayrıca:</span>${g.others.map(o => {
+        const os = srcById[o.sourceId] || { name: o.sourceId, color: '#999' };
+        return `<a href="${esc(o.url)}" data-id="${esc(o.id)}" title="${esc(o.title)}"><span class="dot" style="--c:${esc(os.color)}"></span>${esc(os.name)}${o.price != null && o.price !== it.price ? ` · ${esc(formatPrice(o.price))}` : ''}${o.replies != null ? ` · 💬 ${o.replies}` : ''}</a>`;
+      }).join('')}</div>` : ''}
     </li>`;
   }).join('');
 
@@ -179,7 +212,7 @@ function render() {
 
   els.refresh.classList.toggle('spinning', running);
   els.lastRun.textContent = running ? 'Taranıyor…' : (meta.lastRun ? `Son tarama: ${ago(meta.lastRun, now)}${ago(meta.lastRun, now) === 'şimdi' ? '' : ' önce'}` : '');
-  els.counts.textContent = `${list.length} fırsat`;
+  els.counts.textContent = `${groups.length} fırsat`;
 }
 
 // ---------- olaylar ----------

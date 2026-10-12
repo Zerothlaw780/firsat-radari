@@ -2,6 +2,7 @@
 // Saf fonksiyonlar (chrome.* yok) — Node'da test edilebilir.
 
 import { norm, parsePrice, parseWatchList, findWatch, visibleItems } from './filters.js';
+import { updateHistory } from './products.js';
 
 export const DEFAULT_SOURCES = [
   {
@@ -49,6 +50,9 @@ export const DEFAULT_SETTINGS = {
   hideEnded: true,
   maxAgeDays: 7,
   maxReplies: 300,
+  // Aynı fırsatı farklı forumlarda tek satırda göster
+  mergeDuplicates: true,
+  showPriceHistory: true,
   blockWords: 'ana konu\nsponsorlu',
   // Donanım Arşivi'nde mağazaların sabit reklam konuları
   blockAuthors: 'itopya.com\nGame Garaj\npckolik.com.tr'
@@ -105,9 +109,11 @@ const MAX_ITEMS = 800;
 export function mergeResults(prevState, results, settings, now = Date.now()) {
   const state = {
     items: { ...(prevState?.items || {}) },
-    initialized: { ...(prevState?.initialized || {}) }
+    initialized: { ...(prevState?.initialized || {}) },
+    history: prevState?.history || {}
   };
   const fresh = [];
+  const touched = [];
 
   for (const r of results) {
     if (!r.ok) continue;
@@ -151,6 +157,7 @@ export function mergeResults(prevState, results, settings, now = Date.now()) {
         state.items[id] = item;
         if (!initial) fresh.push(item);
       }
+      touched.push(state.items[id]);
     }
     state.initialized[r.sourceId] = true;
   }
@@ -163,6 +170,9 @@ export function mergeResults(prevState, results, settings, now = Date.now()) {
     all = all.slice(0, MAX_ITEMS);
   }
   state.items = Object.fromEntries(all.map(it => [it.id, it]));
+  // Fiyat geçmişi konulardan bağımsız tutulur (konular 3 hafta sonra silinir, geçmiş 6 ay kalır)
+  // (sabit konular ve ileri tarihli mağaza reklamları geçmişe yazılmaz)
+  state.history = updateHistory(state.history, touched.filter(it => !it.sticky && it.date <= now + 2 * 3600000), now);
 
   // Bildirim adayları: yeni + filtreden geçen + takip kuralına uyan
   const watches = parseWatchList(settings.watchText);

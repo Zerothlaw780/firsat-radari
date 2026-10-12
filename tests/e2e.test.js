@@ -168,6 +168,15 @@ try {
   step('yeni konular: 2 bildirim (kılıf hariç tutuldu), rozet 3');
 
   // 3) Popup listesi ve filtreler
+  // Fiyat geçmişine eski kayıtlar ekle (gerçekte haftalar içinde birikir)
+  await sw.evaluate(async () => {
+    const { state } = await chrome.storage.local.get('state');
+    const old = Date.now() - 20 * 86400000;
+    state.history['x24f182s'] = [...(state.history['x24f182s'] || []), { id: 'r10:eski1', p: 3199, d: old, s: 'r10' }];
+    state.history['990evoplus|2tb'] = [{ id: 'technopat:eski2', p: 5299, d: old, s: 'technopat' }];
+    await chrome.storage.local.set({ state });
+  });
+  await page.reload();
   await page.waitForTimeout(600);
   const titles = await page.$$eval('.deal .title', els => els.map(e => e.textContent.trim()));
   assert.equal(titles[0], 'Samsung 990 EVO Plus 2 TB NVMe SSD 4.799 TL!', 'en yeni konu en üstte olmalı');
@@ -180,18 +189,31 @@ try {
   await page.fill('#q', 'monitor');
   await page.waitForTimeout(100);
   const found = await page.$$eval('.deal .title', els => els.map(e => e.innerHTML));
-  assert.equal(found.length, 3);
+  assert.equal(found.length, 2, 'Fazeon iki forumda: tek satır olmalı');
   assert.ok(found.every(h => /<mark>Mon[iı]t[oö]r<\/mark>/i.test(h)), 'Türkçe karakterden bağımsız vurgulama');
   await page.fill('#q', '');
   await page.click('.chip[data-filter="watch"]');
   await page.waitForTimeout(100);
-  assert.equal(await page.$$eval('.deal', els => els.length), 5);
+  assert.equal(await page.$$eval('.deal', els => els.length), 4);
   await page.click('.chip[data-filter="all"]');
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.waitForTimeout(100);
   await page.screenshot({ path: `${OUT}/popup-dark.png` });
   await page.emulateMedia({ colorScheme: 'light' });
   step('popup: sıralama, gizleme, arama, takip çipi');
+
+  // 3b) Aynı fırsat birleştirme ve fiyat geçmişi
+  const fazeon = await page.$$eval('.deal', els => els
+    .filter(e => /X24F182S/i.test(e.querySelector('.title').textContent))
+    .map(e => ({ also: [...e.querySelectorAll('.also a')].map(a => a.textContent.trim()), hist: e.querySelector('.hist')?.textContent.trim() })));
+  assert.equal(fazeon.length, 1, 'Fazeon tek satırda olmalı');
+  assert.equal(fazeon[0].also.length, 1);
+  assert.match(fazeon[0].also[0], /Donanım Arşivi/);
+  assert.match(fazeon[0].hist, /Daha önce 3\.199/);
+  const ssdHist = await page.$eval('.deal', e => e.querySelector('.hist')?.textContent.trim());
+  assert.match(ssdHist, /Görülen en düşük/);
+  await page.screenshot({ path: `${OUT}/popup.png` });
+  step('aynı fırsat tek satırda, fiyat geçmişi rozetleri');
 
   // 4) Bot doğrulaması veren kaynak
   blockR10 = true;

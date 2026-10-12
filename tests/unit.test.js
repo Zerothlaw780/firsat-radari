@@ -81,7 +81,7 @@ t('failed source not initialized', () => assert.ok(!r2.state.initialized.r10));
 let r3 = C.mergeResults(r2.state, [{ sourceId: 'r10', ok: true, items: [p('9', 'R10 konu', { startDate: null, lastPost: now - 5000 })] }], s2, now + 120000);
 let r4 = C.mergeResults(r3.state, [{ sourceId: 'r10', ok: true, items: [p('9', 'R10 konu', { startDate: null, lastPost: now + 999999 })] }], s2, now + 180000);
 t('lastPost-only date stays fixed', () => assert.equal(r4.state.items['r10:9'].date, now - 5000));
-t('unread count', () => assert.equal(C.unreadCount(Object.values(r2.state.items), s2, now), 2 /* 3,4 visible new; 5 ended */));
+t('unread count', () => assert.equal(C.unreadCount(Object.values(r2.state.items), s2, now, now + 120000), 2 /* 3,4 visible new; 5 ended */));
 
 // withDefaults: kullanıcının kapattığı kaynak kapalı kalır, yeni hazır kaynak eklenir
 const saved = { sources: [{ id: 'technopat', enabled: false }, { id: 'benim', name: 'Benim Forum', url: 'https://a.b/', type: 'xenforo', enabled: true }] };
@@ -90,5 +90,64 @@ t('defaults keep toggle', () => assert.equal(w.sources.find(s => s.id === 'techn
 t('defaults add missing builtins', () => assert.ok(w.sources.find(s => s.id === 'r10')));
 t('defaults custom gets color', () => assert.ok(w.sources.find(s => s.id === 'benim').color));
 t('makeSourceId', () => assert.equal(C.makeSourceId('PC Hocası Fırsatlar', w.sources), 'pc-hocasi-firsatlar'));
+
+// --- ürün eşleştirme ---
+const PR = await import(L + 'products.js');
+const tok = s => PR.productTokens(s).models;
+t('model: monitor code', () => assert.deepEqual(tok('Fazeon X24F182S 180 Hz Monitör 3.369 TL!'), ['x24f182s']));
+t('model: other forum spelling', () => assert.deepEqual(tok("3.369 TL - Fazeon 23.8' X24f182s 1ms 180hz Fhd Ips Gamıng Monıtor"), ['x24f182s']));
+t('model: gpu', () => assert.deepEqual(tok('Sapphire RX 9070 XT Pulse 31.999 TL'), ['rx9070xt']));
+t('model: gpu no space + Tı', () => assert.deepEqual(tok('Zotac RTX 5070 Tı Ekran Kartı'), ['rtx5070ti']));
+t('model: cpu', () => assert.deepEqual(tok('AMD Ryzen 5 5600 5.899 TL'), ['ryzen5600']));
+t('model: phone', () => assert.deepEqual(tok('Iphone 16e 128 GB 43999₺'), ['iphone16e']));
+t('model: ssd series', () => assert.deepEqual(tok('Samsung 990 EVO Plus 2 TB NVMe SSD 4.799 TL!'), ['990evoplus']));
+t('model: units ignored', () => assert.deepEqual(tok('Getir Büyük 15li Büyük Boy Yumurta 75tl'), []));
+t('model: merged word ignored', () => assert.deepEqual(tok('TCL 55c7k 55 İnç Ekran4k TV'), ['55c7k']));
+t('key includes capacity', () => assert.equal(PR.productKey('Kingston 1TB NV3 Gen4 SSD 2.999 TL'), 'nv3|1tb'));
+
+const D = 86400e3, T0 = Date.UTC(2026, 9, 12);
+const deal = (id, sourceId, title, dayOffset = 0) => ({ id, sourceId, title, price: F.parsePrice(title), date: T0 + dayOffset * D });
+const a = deal('technopat:1', 'technopat', 'Fazeon X24F182S 180 Hz Monitör 3.369 TL!');
+const b = deal('donanimarsivi:2', 'donanimarsivi', "3.369 TL - Fazeon 23.8' X24f182s 1ms 180hz Monitor", -0.2);
+const c = deal('donanimarsivi:3', 'donanimarsivi', 'RX 9070 XT kılıf 99 TL');
+const d = deal('technopat:4', 'technopat', 'Sapphire RX 9070 XT Pulse 31.999 TL');
+const e = deal('r10:5', 'r10', 'Fazeon X24F182S monitör 3.369 TL', -10);
+t('sameDeal across forums', () => assert.ok(PR.sameDeal(a, b)));
+t('accessory with same model not same deal', () => assert.ok(!PR.sameDeal(c, d)));
+t('old repost not same deal', () => assert.ok(!PR.sameDeal(a, e)));
+t('capacity mismatch not same deal', () => assert.ok(!PR.sameDeal(deal('x:1', 'x', 'Kingston NV3 1TB 2.999 TL'), deal('y:2', 'y', 'Kingston NV3 2TB 3.199 TL'))));
+t('groupDeals keeps order and merges', () => {
+  const g = PR.groupDeals([a, d, b, c]);
+  assert.deepEqual(g.map(x => [x.main.id, x.others.map(o => o.id)]), [['technopat:1', ['donanimarsivi:2']], ['technopat:4', []], ['donanimarsivi:3', []]]);
+});
+
+// --- fiyat geçmişi ---
+const hist = PR.updateHistory({}, [
+  deal('r10:10', 'r10', 'Fazeon X24F182S 180hz 3.199 TL', -20),
+  deal('technopat:11', 'technopat', 'Fazeon X24F182S 180hz 3.599 TL', -40),
+  deal('technopat:12', 'technopat', 'Fazeon X24F182S kılıf 99 TL', -15),
+  a, b
+], T0);
+t('history key collects entries', () => assert.equal(hist['x24f182s'].length, 5));
+t('insight: higher than prior low', () => {
+  const ins = PR.priceInsight(a, hist);
+  assert.equal(ins.kind, 'higher'); assert.equal(ins.min, 3199); assert.equal(ins.count, 2); // kılıf ve aynı dalga hariç
+});
+t('insight: lowest', () => assert.equal(PR.priceInsight(deal('x:9', 'x', 'Fazeon X24F182S 2.999 TL'), hist).kind, 'lowest'));
+t('insight: same', () => assert.equal(PR.priceInsight(deal('x:9', 'x', 'Fazeon X24F182S 3.199 TL'), hist).kind, 'same'));
+t('insight: none without prior', () => assert.equal(PR.priceInsight(d, hist), null));
+t('history updates edited price', () => {
+  const h2 = PR.updateHistory(hist, [{ ...a, title: 'Fazeon X24F182S 3.299 TL', price: 3299 }], T0);
+  assert.equal(h2['x24f182s'].find(x => x.id === a.id).p, 3299);
+  assert.equal(h2['x24f182s'].length, 5);
+});
+t('history drops very old', () => assert.ok(!PR.updateHistory({ k: [{ id: 'z', p: 1, d: T0 - 400 * D }] }, [], T0).k));
+t('merge writes history (not for stickies)', () => {
+  const r = C.mergeResults(null, [{ sourceId: 'technopat', ok: true, items: [
+    { threadId: '1', title: 'Fazeon X24F182S 3.369 TL', startDate: T0, url: 'u' },
+    { threadId: '2', title: 'Sabit G102 kuralları 1 TL', startDate: T0, url: 'u', sticky: true }
+  ] }], settings, T0 + 1000);
+  assert.deepEqual(Object.keys(r.state.history), ['x24f182s']);
+});
 
 console.log(`${pass} test geçti`);

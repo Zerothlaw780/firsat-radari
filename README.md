@@ -15,6 +15,8 @@ Technopat, Donanım Arşivi, R10 ve DonanımHaber'deki indirim konularını tek 
 
 - **Tek liste:** Dört forumun fırsat bölümleri tek yerde. Kaynağa göre süzme, arama, "en yeni / en çok yorum / en ucuz" sıralama.
 - **Takip listesi ve bildirim:** `ssd <3000`, `9070 xt -kılıf` gibi kurallar yazarsın; yeni açılan bir konu uyarsa bildirim gelir.
+- **Aynı fırsatı birleştirme:** Aynı ürün birkaç forumda paylaşıldıysa tek satırda görünür; diğer forumlardaki konular "Ayrıca:" satırında listelenir. Eşleştirme başlıktaki model koduna (`X24F182S`, `RX 9070 XT`, `Ryzen 5 5600`, `iPhone 16e` gibi), tarih yakınlığına ve fiyat uyumuna bakar.
+- **Fiyat geçmişi:** Eklenti gördüğü fiyatları ürün bazında 6 ay saklar. Aynı model daha önce daha ucuza paylaşıldıysa "Daha önce 3.199 ₺", şimdiye kadarki en ucuz fiyatsa "📉 Görülen en düşük" rozeti çıkar. Geçmiş eklentinin kurulduğu günden itibaren birikir.
 - **Fiyat okuma:** Başlıktaki fiyatı anlar ("3.369 TL", "999tl", "4.999₺", "1.796,52 TL"). "500 TL kupon", "2.000 TL'ye" gibi eşik ve indirim tutarlarını fiyat saymaz.
 - **Gürültü filtresi:** Sabit konular, mağaza reklamları, "İndirim Bitti" / ❌ / [BİTTİ] konuları, eski konular ve DonanımHaber'deki dev "ana konu" başlıkları gizlenir.
 - **Başka kaynak ekleme:** Herhangi bir XenForo veya vBulletin forum bölümü, DonanımHaber bölümü ya da RSS/Atom akışı ayarlardan eklenebilir. Tür otomatik algılanır.
@@ -99,6 +101,7 @@ Bir site tasarımını değiştirip liste boş gelmeye başlarsa `extension/lib/
 | `extension/lib/parsers.js` | Site ayrıştırıcıları |
 | `extension/lib/filters.js` | Fiyat okuma, filtreler, takip kuralları |
 | `extension/lib/core.js` | Varsayılan kaynaklar, sonuçları birleştirme |
+| `extension/lib/products.js` | Model kodu çıkarma, aynı fırsatı gruplama, fiyat geçmişi |
 | `extension/lib/ext.js` | `chrome` / `browser` API farkını kapatır |
 | `extension/popup.*`, `extension/options.*` | Arayüz |
 | `scripts/safari.sh` | Safari için Xcode projesi üretir |
