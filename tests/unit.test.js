@@ -179,4 +179,15 @@ t('new builtin sources appear for existing users', () => {
   assert.equal(w2.sources.find(s => s.id === 'tg-evekonomi').enabled, false);
 });
 
+// --- model kodu olmayan aynı fırsat ---
+const sh1 = deal('donanimarsivi:20', 'donanimarsivi', "Sharkoon Rgb Hex 6 Fanlı Type-C'li Kasa 1.675 TL!");
+const sh2 = deal('technopat:21', 'technopat', "Sharkoon RGB HEX 6 fanlı Type-C'li kasa 1.675 TL!", -0.01);
+const sh3 = deal('technopat:22', 'technopat', 'Sharkoon RGB HEX 6 fanlı kasa 2.399 TL', -0.01);
+const lip = deal('r10:23', 'r10', 'Lipton Ice Tea Şeftali 2l 50.7 TL');
+const lip2 = deal('r10:24', 'r10', 'Lipton Ice Tea Limon 1.5 L 50.7 TL');
+t('similar titles same price merge', () => assert.ok(PR.sameDeal(sh1, sh2)));
+t('similar titles different price no merge', () => assert.ok(!PR.sameDeal(sh1, sh3)));
+t('different flavor no merge', () => assert.ok(!PR.sameDeal(lip, lip2)));
+t('different model codes never merge by title', () => assert.ok(!PR.sameDeal(deal('a:1', 'a', 'Logitech G102 mouse 479 TL'), deal('b:2', 'b', 'Logitech G203 mouse 479 TL'))));
+
 console.log(`${pass} test geçti`);

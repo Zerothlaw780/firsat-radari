@@ -80,12 +80,54 @@ function tokensOf(it) {
   return it._tok;
 }
 
+// Benzerlik hesabında anlam taşımayan kelimeler
+const WEAK = new Set(['tl', 'lira', 've', 'ile', 'icin', 'de', 'da', 'bir', 'en', 'cok', 'indirim', 'indirimi', 'indirimli',
+  'firsat', 'firsati', 'firsatlari', 'sepette', 'kupon', 'kuponu', 'kodu', 'kod', 'adet', 'li', 'lu', 'lik', 'luk', 'yeni',
+  'dip', 'fiyat', 'fiyati', 'ucuz', 'son', 'gun', 'ay', 'ayin', 'kargo', 'bedava', 'ucretsiz', 'amazon', 'trendyol',
+  'hepsiburada', 'n11', 'migros', 'getir', 'sicak', 'super', 'efsane', 'kacirma', 'kacmaz']);
+
+function titleWords(it) {
+  if (!it._words) {
+    const t = norm(it.title)
+      .replace(/\d{1,3}(\.\d{3})+([.,]\d{1,2})?\s*(tl|₺|lira)?/g, ' ')
+      .replace(/\d+([.,]\d{1,2})?\s*(tl|₺|lira)(?![a-z])/g, ' ');
+    it._words = new Set(t.split(/[^a-z0-9]+/).filter(w => w.length >= 2 && !WEAK.has(w)));
+  }
+  return it._words;
+}
+
+/** Başlıklar neredeyse aynı mı? (Jaccard benzerliği: ortak kelime / toplam farklı kelime) */
+export function titleSimilarity(a, b) {
+  const A = titleWords(a), B = titleWords(b);
+  if (!A.size || !B.size) return 0;
+  let common = 0;
+  for (const w of A) if (B.has(w)) common++;
+  return common / (A.size + B.size - common);
+}
+
+function similarTitles(a, b) {
+  const sim = titleSimilarity(a, b);
+  if (Math.min(titleWords(a).size, titleWords(b).size) < 2) return false;
+  if (a.price != null && b.price != null) {
+    // Aynı fiyat + benzer başlık → aynı fırsat
+    const r = Math.max(a.price, b.price) / Math.min(a.price, b.price);
+    return r <= 1.03 && sim >= 0.6;
+  }
+  // Fiyat bilgisi eksikse daha sıkı ol
+  return sim >= 0.8;
+}
+
 /** İki konu aynı fırsat mı? Ortak model kodu + yakın tarih + uyumlu fiyat + çelişmeyen kapasite. */
 export function sameDeal(a, b, windowDays = 3) {
   if (a.id === b.id) return false;
-  const ta = tokensOf(a), tb = tokensOf(b);
-  if (!ta.models.some(m => tb.models.includes(m))) return false;
   if (Math.abs(a.date - b.date) > windowDays * DAY) return false;
+  const ta = tokensOf(a), tb = tokensOf(b);
+  if (!ta.models.some(m => tb.models.includes(m))) {
+    // İkisinin de farklı model kodu varsa farklı ürünlerdir
+    if (ta.models.length && tb.models.length) return false;
+    // Model kodu yoksa ("Sharkoon RGB HEX 6 fanlı kasa") başlık benzerliğine bak
+    return similarTitles(a, b);
+  }
   if (ta.caps.length && tb.caps.length && !ta.caps.some(c => tb.caps.includes(c))) return false;
   if (a.price != null && b.price != null) {
     const r = Math.max(a.price, b.price) / Math.min(a.price, b.price);
