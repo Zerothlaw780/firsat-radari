@@ -150,4 +150,13 @@ t('merge writes history (not for stickies)', () => {
   assert.deepEqual(Object.keys(r.state.history), ['x24f182s']);
 });
 
+// --- Safari için kaynak temizleme ---
+const PS = await import(L + 'parsers.js');
+t('stripResources removes scripts/styles/links', () => {
+  const out = PS.stripResources('<head><title>T</title><link rel="stylesheet" href="/sosyal/css.php"><script src="/sosyal/js/xf/preamble.min.js"></script><script>var a="</div>";</script><style>.x{}</style></head><body><a href="/konu/x.1/">K</a><img src="/a.png" srcset="/b.png 2x" alt="Sabit"></body>');
+  assert.ok(!/script|stylesheet|<style/.test(out));
+  assert.ok(out.includes('<title>T</title>') && out.includes('href="/konu/x.1/"'));
+  assert.ok(out.includes('alt="Sabit"') && !/\ssrc=|\ssrcset=/.test(out));
+});
+
 console.log(`${pass} test geçti`);

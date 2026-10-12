@@ -243,6 +243,20 @@ export function diagnose(text, doc) {
 }
 
 /**
+ * Konu listesi için gereksiz olan script, stil ve görsel etiketlerini atar.
+ * Safari, DOMParser ile açılan belgedeki bu kaynakları da yüklemeye çalışıyor; site
+ * göreli yollar kullandığı için eklentinin içinde arıyor ve "Unable to find
+ * sosyal/js/…" hataları üretiyordu. Ayrıştırmayı da hızlandırıyor.
+ */
+export function stripResources(html) {
+  return html
+    .replace(/<(script|style|noscript|template|iframe|video|audio|svg)\b[\s\S]*?<\/\1\s*>/gi, '')
+    .replace(/<(link|track|embed|object|base)\b[^>]*>/gi, '')
+    // Görselleri silme (alt metni sabit konu tespitinde işe yarıyor), sadece yüklenmesini engelle
+    .replace(/<(img|source)\b([^>]*)>/gi, (_, tag, attrs) => `<${tag}${attrs.replace(/\s(src|srcset)\s*=/gi, ' data-x-$1=')}>`);
+}
+
+/**
  * Ham metni ayrıştırır.
  * type: 'auto' | 'xenforo' | 'vbulletin' | 'donanimhaber' | 'rss'
  * Dönüş: { type, items, hint }  (hint: sonuç boşsa olası sebep)
@@ -253,7 +267,7 @@ export function parsePage(text, pageUrl, type = 'auto') {
     const items = parseFeed(xml, pageUrl);
     return { type: 'rss', items, hint: items.length ? null : 'empty' };
   }
-  const doc = new DOMParser().parseFromString(text, 'text/html');
+  const doc = new DOMParser().parseFromString(stripResources(text), 'text/html');
   const t = type === 'auto' ? detectType(doc) : type;
   const fn = HTML_PARSERS[t];
   const items = fn ? fn(doc, pageUrl) : [];
