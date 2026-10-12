@@ -17,6 +17,9 @@ Technopat, Donanım Arşivi, R10, DonanımHaber ve PC Hocası'ndaki indirim konu
 - **Tek liste:** Tüm kaynakların fırsatları tek yerde. Kaynağa göre süzme, arama, "en yeni / en çok yorum / en ucuz" sıralama.
 - **Takip listesi ve bildirim:** `ssd <3000`, `9070 xt -kılıf` gibi kurallar yazarsın; yeni açılan bir konu uyarsa bildirim gelir.
 - **Aynı fırsatı birleştirme:** Aynı ürün birkaç forumda paylaşıldıysa tek satırda görünür; diğer forumlardaki konular "Ayrıca:" satırında listelenir. Eşleştirme başlıktaki model koduna (`X24F182S`, `RX 9070 XT`, `Ryzen 5 5600`, `iPhone 16e` gibi), tarih yakınlığına ve fiyat uyumuna bakar.
+- **Kategori filtresi:** Her fırsat başlığına göre Bilgisayar, Telefon & Tablet, Oyun, Ev & Elektronik, Market & Bakım, Giyim, Kupon & Kampanya ya da Diğer olarak sınıflanır. Popup'taki kategori çiplerinden seçtiklerin dışındakiler gizlenir; seçim kalıcıdır. Takip listesindeki kurallar kategori filtresinden bağımsız olarak bildirim göndermeye devam eder.
+- **Satırdan hızlı işlemler:** Bir fırsatın üzerine gelince **Gizle** (o fırsatı tüm forumlardaki kopyalarıyla listeden kaldırır, geri alınabilir) ve **Takip et** (ürünün model kodunu ya da başlığın ilk kelimelerini takip listesine ekler) düğmeleri çıkar.
+- **CSV dışa aktarma:** Ayarlar → Veri bölümünden toplanan fırsatlar ve fiyat geçmişi indirilebilir (Excel'de açılır; Python'da `pd.read_csv(dosya, sep=';', decimal=',')`). Fırsat dosyası, ileride popülerlik tahmini için kullanılabilecek ilk ve 24. saatteki yorum sayılarını da içerir.
 - **Fiyat geçmişi:** Eklenti gördüğü fiyatları ürün bazında 6 ay saklar. Aynı model daha önce daha ucuza paylaşıldıysa "Daha önce 3.199 ₺", şimdiye kadarki en ucuz fiyatsa "📉 Görülen en düşük" rozeti çıkar. Geçmiş eklentinin kurulduğu günden itibaren birikir.
 - **Fiyat okuma:** Başlıktaki fiyatı anlar ("3.369 TL", "999tl", "4.999₺", "1.796,52 TL"). "500 TL kupon", "2.000 TL'ye" gibi eşik ve indirim tutarlarını fiyat saymaz.
 - **Gürültü filtresi:** Sabit konular, mağaza reklamları, "İndirim Bitti" / ❌ / [BİTTİ] konuları, eski konular ve DonanımHaber'deki dev "ana konu" başlıkları gizlenir.
@@ -102,7 +105,9 @@ Bir site tasarımını değiştirip liste boş gelmeye başlarsa `extension/lib/
 | `extension/lib/parsers.js` | Site ayrıştırıcıları |
 | `extension/lib/filters.js` | Fiyat okuma, filtreler, takip kuralları |
 | `extension/lib/core.js` | Varsayılan kaynaklar, sonuçları birleştirme |
-| `extension/lib/products.js` | Model kodu çıkarma, aynı fırsatı gruplama, fiyat geçmişi |
+| `extension/lib/products.js` | Model kodu çıkarma, aynı fırsatı gruplama, fiyat geçmişi, takip önerisi |
+| `extension/lib/categories.js` | Başlıktan kategori tahmini |
+| `extension/lib/export.js` | CSV dışa aktarma |
 | `extension/lib/ext.js` | `chrome` / `browser` API farkını kapatır |
 | `extension/popup.*`, `extension/options.*` | Arayüz |
 | `scripts/safari.sh` | Safari için Xcode projesi üretir |

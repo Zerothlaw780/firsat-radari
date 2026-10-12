@@ -3,6 +3,7 @@
 
 import { norm, parsePrice, parseWatchList, findWatch, visibleItems } from './filters.js';
 import { updateHistory } from './products.js';
+import { categorize } from './categories.js';
 
 export const DEFAULT_SOURCES = [
   {
@@ -75,6 +76,8 @@ export const DEFAULT_SETTINGS = {
   // Aynı fırsatı farklı forumlarda tek satırda göster
   mergeDuplicates: true,
   showPriceHistory: true,
+  // Boşsa tüm kategoriler; doluysa sadece bunlar gösterilir
+  categoryFilter: [],
   blockWords: 'ana konu\nsponsorlu',
   // Donanım Arşivi'nde mağazaların sabit reklam konuları
   blockAuthors: 'itopya.com\nGame Garaj\npckolik.com.tr'
@@ -164,6 +167,10 @@ export function mergeResults(prevState, results, settings, now = Date.now()) {
           // Başlangıç tarihi biliniyorsa onu kullan; bilinmiyorsa ilk gördüğümüz tarih sabit kalır
           date: p.startDate ?? old.date
         };
+        const upd = state.items[id];
+        upd.category = categorize(upd);
+        // Popülerlik modeli için: ilk görüldükten ~24 saat sonraki yorum sayısı
+        if (upd.replies24 == null && upd.replies != null && now - upd.firstSeen >= 24 * 3600000) upd.replies24 = upd.replies;
       } else {
         const item = {
           id,
@@ -180,8 +187,10 @@ export function mergeResults(prevState, results, settings, now = Date.now()) {
           price: priceOf(p),
           date: p.startDate ?? p.lastPost ?? now,
           firstSeen: now,
+          firstReplies: p.replies ?? null,
           initial
         };
+        item.category = categorize(item);
         state.items[id] = item;
         if (!initial) fresh.push(item);
       }
@@ -206,7 +215,8 @@ export function mergeResults(prevState, results, settings, now = Date.now()) {
   const watches = parseWatchList(settings.watchText);
   const alerts = [];
   if (watches.length) {
-    for (const it of visibleItems(fresh, settings, now)) {
+    // Takip kuralları açıkça istenmiş şeyler: kategori filtresi bildirimi engellemesin
+    for (const it of visibleItems(fresh, { ...settings, categoryFilter: [] }, now)) {
       const w = findWatch(it, watches);
       if (w) alerts.push({ item: it, watch: w });
     }
@@ -215,6 +225,6 @@ export function mergeResults(prevState, results, settings, now = Date.now()) {
 }
 
 /** Rozette gösterilecek okunmamış sayısı. */
-export function unreadCount(items, settings, lastViewed, now = Date.now()) {
-  return visibleItems(items, settings, now).filter(it => !it.initial && it.firstSeen > lastViewed).length;
+export function unreadCount(items, settings, lastViewed, now = Date.now(), hidden = null) {
+  return visibleItems(items, settings, now, hidden).filter(it => !it.initial && it.firstSeen > lastViewed).length;
 }

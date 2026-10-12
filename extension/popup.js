@@ -1,11 +1,13 @@
 import { ext } from './lib/ext.js';
 import { withDefaults } from './lib/core.js';
 import { norm, visibleItems, parseWatchList, findWatch, formatPrice } from './lib/filters.js';
-import { groupDeals, priceInsight } from './lib/products.js';
+import { groupDeals, priceInsight, suggestWatch } from './lib/products.js';
+import { CATEGORIES, categorize } from './lib/categories.js';
+import { matchWatch, parseWatch } from './lib/filters.js';
 
 const $ = sel => document.querySelector(sel);
 const els = {
-  list: $('#list'), empty: $('#empty'), chips: $('#chips'), errors: $('#errors'),
+  list: $('#list'), empty: $('#empty'), chips: $('#chips'), cats: $('#cats'), errors: $('#errors'), toast: $('#toast'),
   q: $('#q'), sort: $('#sort'), refresh: $('#refresh'), settings: $('#settings'),
   lastRun: $('#lastRun'), counts: $('#counts')
 };
@@ -74,16 +76,20 @@ function insightHtml(ins, now) {
 
 // ---------- veri ----------
 async function fetchData() {
-  const raw = await ext.storage.local.get(['settings', 'state', 'status', 'meta', 'visited']);
+  const raw = await ext.storage.local.get(['settings', 'state', 'status', 'meta', 'visited', 'hidden']);
   const settings = withDefaults(raw.settings);
   const items = Object.values(raw.state?.items || {});
-  for (const it of items) it._n = norm(it.title);
+  for (const it of items) {
+    it._n = norm(it.title);
+    it.category ??= categorize(it); // eski sürümden kalan kayıtlar
+  }
   return {
     settings,
     items,
     status: raw.status || {},
     meta: raw.meta || {},
     visited: new Set(raw.visited || []),
+    hidden: new Set(raw.hidden || []),
     history: raw.state?.history || {},
     watches: parseWatchList(settings.watchText)
   };
@@ -102,13 +108,25 @@ function render() {
   const srcById = Object.fromEntries(settings.sources.map(s => [s.id, s]));
   const enabled = settings.sources.filter(s => s.enabled);
 
-  const visible = visibleItems(data.items, settings, now);
+  // Kategori filtresini burada ayrıca uyguluyoruz ki kategori çiplerinin sayıları hepsini göstersin
+  const visible = visibleItems(data.items, { ...settings, categoryFilter: [] }, now, data.hidden);
   for (const it of visible) it._watch = watches.length ? findWatch(it, watches) : null;
 
   // Arama
   const qn = norm(ui.q);
   const qTerms = qn ? qn.split(' ') : [];
-  const searched = qTerms.length ? visible.filter(it => qTerms.every(t => it._n.includes(t))) : visible;
+  const searchedAll = qTerms.length ? visible.filter(it => qTerms.every(t => it._n.includes(t))) : visible;
+
+  // Kategori çipleri
+  const cats = new Set(settings.categoryFilter || []);
+  const catCount = {};
+  for (const it of searchedAll) catCount[it.category] = (catCount[it.category] || 0) + 1;
+  els.cats.innerHTML =
+    `<button class="chip" data-cat="" aria-pressed="${!cats.size}">Tüm kategoriler</button>` +
+    CATEGORIES.filter(c => catCount[c.id] || cats.has(c.id)).map(c =>
+      `<button class="chip" data-cat="${c.id}" aria-pressed="${cats.has(c.id)}" title="${esc(c.name)}">${c.icon} ${esc(c.name)}<span class="n">${catCount[c.id] || 0}</span></button>`
+    ).join('');
+  const searched = cats.size ? searchedAll.filter(it => cats.has(it.category)) : searchedAll;
 
   // Çipler
   const countBy = {};
@@ -167,7 +185,12 @@ function render() {
     const hlTerms = [...qTerms, ...(watch?.terms || [])];
     const insight = settings.showPriceHistory ? priceInsight(it, data.history) : null;
     const cls = ['deal', isNew && 'is-new', watch && 'is-watch', data.visited.has(it.id) && 'visited'].filter(Boolean).join(' ');
+    const ids = all.map(i => i.id).join(',');
     return `<li class="${cls}">
+      <div class="quick">
+        ${watch ? '<button disabled title="Takip listende">⭐ Takipte</button>' : `<button data-watch="${esc(it.id)}" title="Bu ürünü takip listene ekle">☆ Takip et</button>`}
+        <button data-hide="${esc(ids)}" title="Bu fırsatı listeden kaldır">Gizle</button>
+      </div>
       <a class="card" href="${esc(it.url)}" data-id="${esc(it.id)}" title="${esc(it.title)}">
         <div class="meta">
           <span class="src"><span class="dot" style="--c:${esc(src.color)}"></span>${esc(src.name)}</span>
@@ -236,6 +259,78 @@ els.list.addEventListener('auxclick', e => {
   openDeal(a.dataset.id, a.href, true);
 });
 
+// ---------- kategori ve hızlı işlemler ----------
+async function saveSettings(patch) {
+  const { settings } = await ext.storage.local.get('settings');
+  const next = { ...withDefaults(settings), ...patch };
+  await ext.storage.local.set({ settings: next });
+  ext.runtime.sendMessage({ type: 'settingsChanged' }).catch(() => {});
+  return next;
+}
+
+els.cats.addEventListener('click', async e => {
+  const b = e.target.closest('[data-cat]');
+  if (!b) return;
+  const id = b.dataset.cat;
+  let list = [...(data.settings.categoryFilter || [])];
+  if (!id) list = [];
+  else if (list.includes(id)) list = list.filter(x => x !== id);
+  else list.push(id);
+  data.settings = await saveSettings({ categoryFilter: list });
+  render();
+});
+
+let toastTimer = null;
+function toast(html, onUndo) {
+  els.toast.innerHTML = `<span>${html}</span>${onUndo ? '<button data-undo>Geri al</button>' : ''}`;
+  els.toast.hidden = false;
+  els.toast.onclick = async e => {
+    if (!e.target.closest('[data-undo]')) return;
+    els.toast.hidden = true;
+    await onUndo();
+  };
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { els.toast.hidden = true; }, 6000);
+}
+
+async function setHidden(ids, hide) {
+  const { hidden = [] } = await ext.storage.local.get('hidden');
+  const set = new Set(hidden);
+  for (const id of ids) hide ? set.add(id) : set.delete(id);
+  const list = [...set].slice(-1000);
+  await ext.storage.local.set({ hidden: list });
+  data.hidden = new Set(list);
+  ext.runtime.sendMessage({ type: 'updateBadge' }).catch(() => {});
+  render();
+}
+
+els.list.addEventListener('click', async e => {
+  const hideBtn = e.target.closest('[data-hide]');
+  if (hideBtn) {
+    const ids = hideBtn.dataset.hide.split(',');
+    await setHidden(ids, true);
+    toast('Gizlendi.', () => setHidden(ids, false));
+    return;
+  }
+  const watchBtn = e.target.closest('[data-watch]');
+  if (watchBtn) {
+    const it = data.items.find(i => i.id === watchBtn.dataset.watch);
+    if (!it) return;
+    const rule = suggestWatch(it, c => { const w = parseWatch(c); return !!w && matchWatch(it, w); });
+    if (!rule) return;
+    const before = data.settings.watchText || '';
+    const text = before.replace(/\s*$/, '') + (before.trim() ? '\n' : '') + rule + '\n';
+    data.settings = await saveSettings({ watchText: text });
+    data.watches = parseWatchList(text);
+    render();
+    toast(`“${esc(rule)}” takip listene eklendi.`, async () => {
+      data.settings = await saveSettings({ watchText: before });
+      data.watches = parseWatchList(before);
+      render();
+    });
+  }
+});
+
 els.chips.addEventListener('click', e => {
   const b = e.target.closest('[data-filter]');
   if (!b) return;
@@ -266,7 +361,7 @@ async function doRefresh() {
 
 ext.storage.onChanged.addListener(async (changes, area) => {
   if (area !== 'local') return;
-  if (changes.state || changes.status || changes.meta || changes.settings) {
+  if (changes.state || changes.status || changes.meta || changes.settings || changes.hidden) {
     data = await fetchData();
     render();
   }

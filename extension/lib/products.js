@@ -117,6 +117,25 @@ function similarTitles(a, b) {
   return sim >= 0.8;
 }
 
+/**
+ * "Takip et" düğmesi için kural önerisi: önce model kodu ("rx9070xt"), olmazsa
+ * harf/rakam ayrılmış hali ("ryzen 5600"), o da olmazsa başlığın ilk 3 anlamlı kelimesi.
+ * matchFn verilirse önerinin konunun kendisine uyduğu doğrulanır.
+ */
+export function suggestWatch(item, matchFn) {
+  const cands = [];
+  const t = norm(item.title);
+  for (const m of productTokens(item.title).models) {
+    const split = m.replace(/([a-z])(?=\d)|(\d)(?=[a-z])/g, '$1$2 ').replace(/\s+/g, ' ').trim();
+    // Başlıkta nasıl yazıyorsa o hali okunaklı olduğu için önce gelsin ("rx 9070 xt")
+    if (t.includes(split)) cands.push(split, m); else cands.push(m, split);
+  }
+  const words = [...titleWords(item)].filter(w => !/^\d+$/.test(w)).slice(0, 3);
+  if (words.length) cands.push(words.join(' '));
+  for (const c of cands) if (!matchFn || matchFn(c)) return c;
+  return cands[0] || null;
+}
+
 /** İki konu aynı fırsat mı? Ortak model kodu + yakın tarih + uyumlu fiyat + çelişmeyen kapasite. */
 export function sameDeal(a, b, windowDays = 3) {
   if (a.id === b.id) return false;

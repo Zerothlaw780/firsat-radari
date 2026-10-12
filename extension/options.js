@@ -1,6 +1,8 @@
 import { ext } from './lib/ext.js';
 import { withDefaults, makeSourceId, colorFor, shortName } from './lib/core.js';
 import { PARSER_NAMES } from './lib/parsers.js';
+import { dealsCSV, historyCSV } from './lib/export.js';
+import { parseWatchList, matchWatch } from './lib/filters.js';
 
 const $ = id => document.getElementById(id);
 let settings = null;
@@ -24,7 +26,7 @@ async function persist() {
 
 function schedulePersist() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(persist, 400);
+  saveTimer = setTimeout(async () => { await persist(); saveTimer = null; }, 400);
 }
 
 // ---------- form alanları ----------
@@ -208,10 +210,57 @@ $('resetData').addEventListener('click', async () => {
   ext.runtime.sendMessage({ type: 'refresh' });
 });
 
+// ---------- veri dışa aktarma ----------
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+const stamp = () => new Date().toISOString().slice(0, 10);
+
+$('exportDeals').addEventListener('click', async () => {
+  const { state, hidden = [] } = await ext.storage.local.get(['state', 'hidden']);
+  const items = Object.values(state?.items || {});
+  download(`firsat-radari-firsatlar-${stamp()}.csv`, dealsCSV(items, {
+    sources: settings.sources, hidden: new Set(hidden), watches: parseWatchList(settings.watchText), matchWatch
+  }));
+  $('exportInfo').textContent = `${items.length} konu indirildi.`;
+});
+
+$('exportHistory').addEventListener('click', async () => {
+  const { state } = await ext.storage.local.get('state');
+  const history = state?.history || {};
+  const n = Object.values(history).reduce((a, l) => a + l.length, 0);
+  download(`firsat-radari-fiyat-gecmisi-${stamp()}.csv`, historyCSV(history, settings.sources));
+  $('exportInfo').textContent = `${n} fiyat kaydı indirildi (${Object.keys(history).length} model).`;
+});
+
+$('clearHidden').addEventListener('click', async () => {
+  const { hidden = [] } = await ext.storage.local.get('hidden');
+  await ext.storage.local.remove('hidden');
+  ext.runtime.sendMessage({ type: 'updateBadge' }).catch(() => {});
+  $('clearHidden').textContent = `${hidden.length} fırsat geri getirildi`;
+});
+
 // ---------- başlat ----------
 ext.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes.status) { status = changes.status.newValue || {}; renderSources(); }
+  // Popup'tan "Takip et" ya da kategori seçimi gibi değişiklikler gelirse formu güncelle
+  if (changes.settings?.newValue && !saveTimer) {
+    const next = withDefaults(changes.settings.newValue);
+    if (JSON.stringify(next) !== JSON.stringify(settings)) {
+      settings = next;
+      for (const k of TEXT_FIELDS) if (document.activeElement !== $(k)) $(k).value = settings[k] ?? '';
+      for (const k of BOOL_FIELDS) $(k).checked = !!settings[k];
+      renderSources();
+    }
+  }
 });
 
 (async () => {

@@ -110,7 +110,8 @@ const ctx = await chromium.launchPersistentContext('', {
   headless: true,
   channel: 'chromium', // uzantılar sadece tam Chromium'da çalışır (headless shell'de değil)
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
-  viewport: { width: 900, height: 700 }
+  viewport: { width: 900, height: 700 },
+  acceptDownloads: true
 });
 
 try {
@@ -227,6 +228,42 @@ try {
   await page.screenshot({ path: `${OUT}/popup.png` });
   step('aynı fırsat tek satırda, fiyat geçmişi rozetleri');
 
+  // 3c) Kategori filtresi
+  await page.click('#cats .chip[data-cat="bilgisayar"]');
+  await page.waitForTimeout(250);
+  const pcTitles = await page.$$eval('.deal .title', els => els.map(e => e.textContent));
+  assert.ok(pcTitles.some(t => /Fazeon/.test(t)) && !pcTitles.some(t => /pantolon|Yumurta/i.test(t)), 'sadece bilgisayar kategorisi');
+  assert.deepEqual(await sw.evaluate(async () => (await chrome.storage.local.get('settings')).settings.categoryFilter), ['bilgisayar']);
+  await page.click('#cats .chip[data-cat=""]');
+  await page.waitForTimeout(250);
+  step('kategori filtresi ayara kaydediliyor');
+
+  // 3d) Gizle + geri al
+  const before = await page.$$eval('.deal .title', els => els.map(e => e.textContent.trim()));
+  await page.hover('.deal >> nth=0');
+  await page.screenshot({ path: `${OUT}/popup-hover.png` });
+  await page.click('.deal >> nth=0 >> [data-hide]');
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: `${OUT}/popup-toast.png` });
+  await page.waitForTimeout(250);
+  const afterHide = await page.$$eval('.deal .title', els => els.map(e => e.textContent.trim()));
+  assert.ok(!afterHide.includes(before[0]), 'gizlenen konu listede olmamalı');
+  assert.ok(await page.isVisible('#toast'));
+  await page.click('#toast [data-undo]');
+  await page.waitForTimeout(250);
+  assert.equal((await page.$$eval('.deal .title', els => els.map(e => e.textContent.trim())))[0], before[0], 'geri al');
+  step('satırdan gizle ve geri al');
+
+  // 3e) Takip et
+  const jj = page.locator('.deal', { hasText: 'Jack&Jones' });
+  await jj.hover();
+  await jj.locator('[data-watch]').click();
+  await page.waitForTimeout(250);
+  const watchText = await sw.evaluate(async () => (await chrome.storage.local.get('settings')).settings.watchText);
+  assert.equal(watchText.trim().split('\n').pop(), 'jack jones siyah');
+  assert.ok(await jj.locator('.watch').count(), 'satır takipte görünmeli');
+  step('satırdan takip listesine ekleme');
+
   // 4) Bot doğrulaması veren kaynak
   blockR10 = true;
   await page.evaluate(() => chrome.runtime.sendMessage({ type: 'refresh' }));
@@ -257,6 +294,14 @@ try {
   await opt.goto(`chrome-extension://${extId}/options.html`);
   await opt.waitForTimeout(400);
   await opt.screenshot({ path: `${OUT}/options.png`, fullPage: true });
+  const [dl] = await Promise.all([opt.waitForEvent('download'), opt.click('#exportDeals')]);
+  const csv = fs.readFileSync(await dl.path(), 'utf8');
+  assert.ok(csv.startsWith('\uFEFFid;kaynak;baslik;fiyat_tl;kategori'));
+  assert.ok(csv.split('\r\n').length > 15, 'CSV satırları');
+  assert.match(dl.suggestedFilename(), /^firsat-radari-firsatlar-\d{4}-\d{2}-\d{2}\.csv$/);
+  const [dl2] = await Promise.all([opt.waitForEvent('download'), opt.click('#exportHistory')]);
+  assert.ok(fs.readFileSync(await dl2.path(), 'utf8').includes('x24f182s;'));
+  step('CSV dışa aktarma');
   await opt.fill('#blockWords', 'ana konu\nsponsorlu\nkargo pantolon');
   await opt.waitForTimeout(800);
   await page.waitForTimeout(300);

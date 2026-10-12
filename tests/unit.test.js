@@ -190,4 +190,66 @@ t('similar titles different price no merge', () => assert.ok(!PR.sameDeal(sh1, s
 t('different flavor no merge', () => assert.ok(!PR.sameDeal(lip, lip2)));
 t('different model codes never merge by title', () => assert.ok(!PR.sameDeal(deal('a:1', 'a', 'Logitech G102 mouse 479 TL'), deal('b:2', 'b', 'Logitech G203 mouse 479 TL'))));
 
+// --- kategoriler ---
+const CT = await import(L + 'categories.js');
+const cat = (title, extra = {}) => CT.categorize({ title, labels: [], ...extra });
+for (const [title, want] of [
+  ['Fazeon X24F182S 180 Hz Monitör 3.369 TL!', 'bilgisayar'], ['Sapphire RX 9070 XT Pulse 31.999 TL', 'bilgisayar'],
+  ['Logitech G102 Sepette 100 TL Kuponla 479 TL', 'bilgisayar'], ['Iphone 16e 128 GB 43999₺', 'telefon'],
+  ['Steam Detroit: Become Human 6,39 USD', 'oyun'], ['TCL 55C7K 55 inç 4K QD-Mini LED TV 49.999TL', 'elektronik'],
+  ['Getir Büyük 15li Büyük Boy Yumurta 75tl', 'market'], ['Jack&Jones siyah kargo pantolon 830 TL!', 'giyim'],
+  ["Amazon'da 300 TL Kupon Avantajı", 'kupon'], ['Play Doh oyun hamuru seti 81 TL', 'market'],
+  ['Ramazan paketi 500 TL', 'diger'], ['Oyuncu monitörü 27 inç 165Hz', 'bilgisayar'],
+]) t('category ' + title, () => assert.equal(cat(title), want));
+t('category from forum label', () => assert.equal(cat('Skechers Archfit erkek 3.574 TL', { labels: ['Giyim'] }), 'giyim'));
+t('category from source', () => assert.equal(cat('Dark Souls serisi indirimde', { sourceId: 'technopat-oyun' }), 'oyun'));
+
+// --- boşluksuz takip terimi ---
+t('compact watch matches spaced title', () => assert.ok(F.matchWatch({ title: 'Sapphire RX 9070 XT Pulse' }, F.parseWatch('rx9070xt'))));
+t('compact only for mixed terms', () => assert.ok(!F.matchWatch({ title: 'Kahve makinesi' }, F.parseWatch('evma'))));
+t('suggestWatch prefers title spelling', () => {
+  const it = { title: 'Sapphire RX 9070 XT Pulse 31.999 TL', price: 31999 };
+  assert.equal(PR.suggestWatch(it, c => F.matchWatch(it, F.parseWatch(c))), 'rx 9070 xt');
+});
+t('suggestWatch fallback words', () => {
+  const it = { title: 'Sharkoon RGB HEX 6 fanlı kasa 1.675 TL', price: 1675 };
+  assert.equal(PR.suggestWatch(it, c => F.matchWatch(it, F.parseWatch(c))), 'sharkoon rgb hex');
+});
+
+// --- kategori filtresi, gizleme, bildirim ---
+const vbase = { sourceId: 'technopat', date: now - 3600e3, labels: [], author: 'x', sticky: false, replies: 1 };
+const vItems = [{ ...vbase, id: 'v1', title: 'Monitör', category: 'bilgisayar' }, { ...vbase, id: 'v2', title: 'Yumurta', category: 'market' }];
+t('category filter', () => assert.deepEqual(F.visibleItems(vItems, { ...settings, categoryFilter: ['market'] }, now).map(i => i.id), ['v2']));
+t('hidden ids', () => assert.deepEqual(F.visibleItems(vItems, settings, now, new Set(['v1'])).map(i => i.id), ['v2']));
+t('alerts ignore category filter', () => {
+  const s3 = { ...settings, watchText: 'nutella', categoryFilter: ['bilgisayar'] };
+  const a = C.mergeResults(null, [{ sourceId: 'technopat', ok: true, items: [p('1', 'Mouse')] }], s3, now);
+  const b = C.mergeResults(a.state, [{ sourceId: 'technopat', ok: true, items: [p('2', 'Nutella 1Kg 199 TL')] }], s3, now + 60000);
+  assert.equal(b.alerts.length, 1);
+  assert.equal(b.state.items['technopat:2'].category, 'market');
+});
+t('reply snapshots for model', () => {
+  const a = C.mergeResults(null, [{ sourceId: 'technopat', ok: true, items: [p('1', 'Mouse', { replies: 2 })] }], settings, now);
+  const b = C.mergeResults(a.state, [{ sourceId: 'technopat', ok: true, items: [p('1', 'Mouse', { replies: 5 })] }], settings, now + 3600e3);
+  const c2 = C.mergeResults(b.state, [{ sourceId: 'technopat', ok: true, items: [p('1', 'Mouse', { replies: 9 })] }], settings, now + 25 * 3600e3);
+  const it = c2.state.items['technopat:1'];
+  assert.equal(it.firstReplies, 2); assert.equal(it.replies24, 9); assert.equal(it.replies, 9);
+});
+
+// --- CSV ---
+const EX = await import(L + 'export.js');
+t('csv format', () => {
+  const csv = EX.dealsCSV([{ id: 'technopat:1', sourceId: 'technopat', title: 'Kasa "RGB"; 1.675,50 TL', price: 1675.5, date: now, firstSeen: now, labels: [], category: 'bilgisayar', url: 'u' }],
+    { sources: settings.sources, hidden: new Set(['technopat:1']) });
+  assert.ok(csv.startsWith('﻿id;kaynak;baslik;fiyat_tl;'));
+  const row = csv.split('\r\n')[1];
+  assert.ok(row.includes('"Kasa ""RGB""; 1.675,50 TL"'));
+  assert.ok(row.includes(';1675,5;Bilgisayar;'));
+  assert.ok(row.includes(';1;0;u'));
+});
+t('history csv', () => {
+  const csv = EX.historyCSV({ 'x24f182s': [{ id: 'r10:1', p: 3199, d: now, s: 'r10' }] }, settings.sources);
+  assert.equal(csv.split('\r\n')[1], `x24f182s;r10:1;R10;3199;${new Date(now).toISOString()}`);
+});
+
 console.log(`${pass} test geçti`);

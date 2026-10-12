@@ -84,6 +84,20 @@
     </section>
 
     <section class="card">
+      <h2>Veri</h2>
+      <p class="muted">Eklentinin topladığı konuları ve fiyat geçmişini CSV olarak indir. Excel'de doğrudan açılır;
+        Python'da <code>pd.read_csv(dosya, sep=';', decimal=',')</code> ile okunur.</p>
+      <div class="row">
+        <button id="exportDeals">Fırsatları indir (CSV)</button>
+        <button id="exportHistory">Fiyat geçmişini indir (CSV)</button>
+        <span id="exportInfo" class="muted small"></span>
+      </div>
+      <div class="row">
+        <button id="clearHidden" class="ghost">Gizlenen fırsatları geri getir</button>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>Tarama</h2>
       <label class="inline">Her
         <select id="intervalMin">

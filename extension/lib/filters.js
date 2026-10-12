@@ -109,9 +109,21 @@ export function parseWatchList(text) {
   return String(text ?? '').split('\n').map(parseWatch).filter(Boolean);
 }
 
+// Harf+rakam karışık terimler ("rx9070xt") boşluksuz başlıkta da aranır: "RX 9070 XT"
+const MIXED = /[a-z]/;
+const DIGIT = /\d/;
+
 export function matchWatch(item, w) {
   const t = item._n ?? norm(item.title);
-  for (const term of w.terms) if (!t.includes(term)) return false;
+  let compact = null;
+  for (const term of w.terms) {
+    if (t.includes(term)) continue;
+    if (MIXED.test(term) && DIGIT.test(term)) {
+      compact ??= t.replace(/[^a-z0-9]+/g, '');
+      if (compact.includes(term)) continue;
+    }
+    return false;
+  }
   for (const ex of w.excludes) if (ex && t.includes(ex)) return false;
   if (w.maxPrice != null) {
     if (item.price == null || item.price > w.maxPrice) return false;
@@ -133,7 +145,8 @@ export function listFromText(text) {
  * Listede gösterilmeyecekleri eler. Dönen her item'a gizlenme sebebi yazılmaz;
  * sadece görünenler döner.
  */
-export function visibleItems(items, settings, now = Date.now()) {
+export function visibleItems(items, settings, now = Date.now(), hidden = null) {
+  const cats = new Set(settings.categoryFilter || []);
   const blockAuthors = new Set(listFromText(settings.blockAuthors).map(norm));
   const blockWords = listFromText(settings.blockWords).map(norm);
   const minDate = settings.maxAgeDays > 0 ? now - settings.maxAgeDays * 86400000 : -Infinity;
@@ -142,6 +155,8 @@ export function visibleItems(items, settings, now = Date.now()) {
   for (const it of items) {
     if (!enabled.has(it.sourceId)) continue;
     if (it.sticky) continue;
+    if (hidden && hidden.has(it.id)) continue;
+    if (cats.size && !cats.has(it.category || 'diger')) continue;
     // Bazı mağaza konuları listenin başında kalmak için ileri tarihli açılıyor
     if (it.date > now + 2 * 3600000) continue;
     if (it.date < minDate) continue;

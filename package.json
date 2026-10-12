@@ -1,6 +1,6 @@
 {
   "name": "firsat-radari",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "private": true,
   "description": "Türk teknoloji forumlarındaki indirim konularını tek listede toplayan tarayıcı eklentisi",
   "type": "module",

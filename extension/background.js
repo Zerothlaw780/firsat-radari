@@ -207,7 +207,8 @@ async function refresh() {
 // ---------- rozet ----------
 async function updateBadge() {
   const { settings, state, meta } = await getAll();
-  const n = unreadCount(Object.values(state.items), settings, meta.lastViewed || 0);
+  const { hidden = [] } = await ext.storage.local.get('hidden');
+  const n = unreadCount(Object.values(state.items), settings, meta.lastViewed || 0, Date.now(), new Set(hidden));
   await ext.action.setBadgeBackgroundColor({ color: '#ff5a1f' });
   await ext.action.setBadgeText({ text: n ? (n > 99 ? '99+' : String(n)) : '' });
 }
@@ -265,6 +266,9 @@ ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return true;
     case 'settingsChanged':
       schedule().then(updateBadge).then(() => sendResponse({ ok: true }));
+      return true;
+    case 'updateBadge':
+      updateBadge().then(() => sendResponse({ ok: true }));
       return true;
     case 'markViewed':
       ext.storage.local.get('meta').then(({ meta }) =>
