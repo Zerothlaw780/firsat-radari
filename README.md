@@ -2,7 +2,7 @@
 
 [![test](https://github.com/Zerothlaw780/firsat-radari/actions/workflows/test.yml/badge.svg)](https://github.com/Zerothlaw780/firsat-radari/actions/workflows/test.yml)
 
-Technopat, Donanım Arşivi, R10 ve DonanımHaber'deki indirim konularını tek listede toplayan tarayıcı eklentisi. Takip listene uyan yeni bir fırsat açıldığında masaüstü bildirimi gönderir. Chrome, Edge, Brave ve Safari'de çalışır.
+Technopat, Donanım Arşivi, R10, DonanımHaber ve PC Hocası'ndaki indirim konularını, istersen Telegram fırsat kanallarıyla birlikte, tek listede toplayan tarayıcı eklentisi. Takip listene uyan yeni bir fırsat açıldığında masaüstü bildirimi gönderir. Chrome, Edge, Brave ve Safari'de çalışır.
 
 <p>
   <img src="docs/popup.png" width="340" alt="Açık tema popup">
@@ -13,13 +13,14 @@ Technopat, Donanım Arşivi, R10 ve DonanımHaber'deki indirim konularını tek 
 
 ## Özellikler
 
-- **Tek liste:** Dört forumun fırsat bölümleri tek yerde. Kaynağa göre süzme, arama, "en yeni / en çok yorum / en ucuz" sıralama.
+- **Kaynaklar:** Hazır olarak açık gelenler Technopat, Donanım Arşivi, R10, DonanımHaber Bilgisayar ve PC Hocası. Ayarlardan tek tıkla açılabilenler Technopat Oyun, ShiftDelete, DH Ev Elektroniği, DH Telefon ve iki Telegram kanalı (evEkonomisi ve Fırsat Merkezi). Telegram kanalları market, giyim ve ev ürünleri ağırlıklı; gönderilerinin çoğu satış ortaklığı (affiliate) bağlantısı, bu yüzden varsayılan olarak kapalı.
+- **Tek liste:** Tüm kaynakların fırsatları tek yerde. Kaynağa göre süzme, arama, "en yeni / en çok yorum / en ucuz" sıralama.
 - **Takip listesi ve bildirim:** `ssd <3000`, `9070 xt -kılıf` gibi kurallar yazarsın; yeni açılan bir konu uyarsa bildirim gelir.
 - **Aynı fırsatı birleştirme:** Aynı ürün birkaç forumda paylaşıldıysa tek satırda görünür; diğer forumlardaki konular "Ayrıca:" satırında listelenir. Eşleştirme başlıktaki model koduna (`X24F182S`, `RX 9070 XT`, `Ryzen 5 5600`, `iPhone 16e` gibi), tarih yakınlığına ve fiyat uyumuna bakar.
 - **Fiyat geçmişi:** Eklenti gördüğü fiyatları ürün bazında 6 ay saklar. Aynı model daha önce daha ucuza paylaşıldıysa "Daha önce 3.199 ₺", şimdiye kadarki en ucuz fiyatsa "📉 Görülen en düşük" rozeti çıkar. Geçmiş eklentinin kurulduğu günden itibaren birikir.
 - **Fiyat okuma:** Başlıktaki fiyatı anlar ("3.369 TL", "999tl", "4.999₺", "1.796,52 TL"). "500 TL kupon", "2.000 TL'ye" gibi eşik ve indirim tutarlarını fiyat saymaz.
 - **Gürültü filtresi:** Sabit konular, mağaza reklamları, "İndirim Bitti" / ❌ / [BİTTİ] konuları, eski konular ve DonanımHaber'deki dev "ana konu" başlıkları gizlenir.
-- **Başka kaynak ekleme:** Herhangi bir XenForo veya vBulletin forum bölümü, DonanımHaber bölümü ya da RSS/Atom akışı ayarlardan eklenebilir. Tür otomatik algılanır.
+- **Başka kaynak ekleme:** Herhangi bir XenForo veya vBulletin forum bölümü, DonanımHaber bölümü, herkese açık Telegram kanalı (`https://t.me/s/kanaladi`) ya da RSS/Atom akışı ayarlardan eklenebilir. Tür otomatik algılanır.
 - **Gizlilik:** Sunucu yok. İstekler senin tarayıcından gider, her şey tarayıcının yerel depolamasında kalır.
 
 ## Kurulum
@@ -74,7 +75,7 @@ alarm (10 dk) → background.js → fetch (tarayıcının kendi çerezleriyle)
                                               └→ bildirim + rozet
 ```
 
-- **Ayrıştırıcılar** (`lib/parsers.js`): XenForo 2 (`.structItem--thread`), vBulletin (`a[id^=thread_title_]`), DonanımHaber (`.kl-icerik-satir`) ve RSS/Atom. Seçiciler dört sitenin gerçek sayfalarında denendi.
+- **Ayrıştırıcılar** (`lib/parsers.js`): XenForo 2 (`.structItem--thread`), vBulletin (`a[id^=thread_title_]`), DonanımHaber (`.kl-icerik-satir`), Telegram web önizlemesi (`.tgme_widget_message`) ve RSS/Atom. Seçiciler dört sitenin gerçek sayfalarında denendi.
 - **Offscreen belge:** Chrome'un arka plan service worker'ında (sayfası olmayan arka plan betiği) DOM yok. HTML'i ayrıştırmak için görünmez bir sayfa açılıyor. Safari arka planı zaten DOM'u olan bir sayfa olarak çalıştırdığı için orada doğrudan ayrıştırılıyor.
 - **Bot doğrulaması:** İstekler senin tarayıcından ve çerezlerinle gittiği için siteler seni normal bir ziyaretçi olarak görür. Bir site Cloudflare doğrulaması gösterirse listede uyarı çıkar; siteyi bir kez normal sekmede açmak yeterli.
 - Tarama sıklığı en az 5 dakikadır. Bu sınır forumları yormamak için var.

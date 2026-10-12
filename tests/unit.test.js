@@ -159,4 +159,24 @@ t('stripResources removes scripts/styles/links', () => {
   assert.ok(out.includes('alt="Sabit"') && !/\ssrc=|\ssrcset=/.test(out));
 });
 
+// --- Telegram fiyat satırları ---
+for (const [s, want] of [
+  ['✅ 910 TL', 910],
+  ['✅Mağaza Takipte 10TL Kupon İle 189TL - Premium Üyelik Kargo Ücretsiz', 189],
+  ["✅OKUL100 Kodu İle 409TL’ye Düşüyor", 409],
+  ['✅79TL / Süper Fiyat - Renk Seçeneği Mevcut', 79],
+  ["1.000 TL'ye kadar indirim", null],
+]) t('tg price ' + s, () => assert.equal(F.parsePrice(s), want));
+t('core uses priceHint when title has no price', () => {
+  const r = C.mergeResults(null, [{ sourceId: 'tg-evekonomi', ok: true, items: [
+    { threadId: '16232', title: 'Super Cat Kedi Maması 15 KG', priceHint: '✅ 910 TL', startDate: T0, url: 'https://t.me/evEkonomi/16232' }
+  ] }], settings, T0 + 1000);
+  assert.equal(r.state.items['tg-evekonomi:16232'].price, 910);
+});
+t('new builtin sources appear for existing users', () => {
+  const w2 = C.withDefaults({ sources: [{ id: 'technopat', enabled: true }] });
+  assert.equal(w2.sources.find(s => s.id === 'pchocasi').enabled, true);
+  assert.equal(w2.sources.find(s => s.id === 'tg-evekonomi').enabled, false);
+});
+
 console.log(`${pass} test geçti`);

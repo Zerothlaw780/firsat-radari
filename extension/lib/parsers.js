@@ -10,6 +10,7 @@ export const PARSER_NAMES = {
   xenforo: 'XenForo forum (Technopat, Donanım Arşivi…)',
   vbulletin: 'vBulletin forum (R10…)',
   donanimhaber: 'DonanımHaber',
+  telegram: 'Telegram kanalı (t.me/s/…)',
   rss: 'RSS / Atom'
 };
 
@@ -101,10 +102,10 @@ function parseXenForo(doc, pageUrl) {
     const idm = row.className.match(/js-threadListItem-(\d+)/) || href.match(/\.(\d+)\/?(?:[?#]|$)/);
     const timeOf = el => {
       if (!el) return null;
-      const ts = Number(el.getAttribute('data-timestamp'));
+      // XenForo 2.2+ "data-timestamp", eski temalar (PC Hocası) "data-time" kullanıyor
+      const ts = Number(el.getAttribute('data-timestamp') || el.getAttribute('data-time'));
       if (ts) return ts * 1000;
-      const iso = Date.parse(el.getAttribute('datetime') || '');
-      return Number.isNaN(iso) ? null : iso;
+      return parseIso(el.getAttribute('datetime'));
     };
     const dds = row.querySelectorAll('.structItem-cell--meta dd');
     out.push({
@@ -221,7 +222,57 @@ function parseFeed(xml, pageUrl) {
   return out;
 }
 
-const HTML_PARSERS = { xenforo: parseXenForo, vbulletin: parseVBulletin, donanimhaber: parseDonanimHaber };
+/** "2026-10-11T23:02:35+0300" gibi iki noktasız saat dilimlerini Safari de anlasın diye düzeltir. */
+function parseIso(s) {
+  if (!s) return null;
+  const d = Date.parse(String(s).trim().replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+  return Number.isNaN(d) ? null : d;
+}
+
+/** <br> satır sonlarını koruyarak düz metin (DOMParser belgelerinde innerText çalışmıyor). */
+function textWithBreaks(el) {
+  if (!el) return '';
+  const c = el.cloneNode(true);
+  for (const br of c.querySelectorAll('br')) br.replaceWith('\n');
+  return c.textContent.replace(/ /g, ' ');
+}
+
+// ---------- Telegram kanalı web önizlemesi (t.me/s/kanal) ----------
+// Başlıktaki süs emojileri ve sondaki " -" atılır
+const LEAD_DECOR = /^[\s\p{Extended_Pictographic}️‍✅❌🔻▪️•*-]+/u;
+
+function parseTelegram(doc, pageUrl) {
+  const out = [];
+  for (const m of doc.querySelectorAll('.tgme_widget_message[data-post]')) {
+    const post = m.getAttribute('data-post');            // "kanal/138035"
+    const id = post.split('/').pop();
+    const text = textWithBreaks(m.querySelector('.tgme_widget_message_text'));
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) continue;
+    const title = lines[0].replace(LEAD_DECOR, '').replace(/\s*-\s*$/, '').trim() || lines[0];
+    // Fiyat genelde "✅ 910 TL" ya da "✅OKUL100 Kodu İle 409TL'ye Düşüyor" satırında
+    const priceHint = lines.slice(1).find(l => /^✅/.test(l)) || lines.slice(1).find(l => /\d\s*(tl|₺)/i.test(l)) || null;
+    const store = lines.find(l => /^🛍/.test(l));
+    const views = txt(m.querySelector('.tgme_widget_message_views'));
+    out.push({
+      threadId: id,
+      title,
+      priceHint,
+      url: abs(post.startsWith('http') ? post : `https://t.me/${post}`, pageUrl),
+      author: txt(m.querySelector('.tgme_widget_message_forwarded_from_name')) || txt(m.querySelector('.tgme_widget_message_owner_name')),
+      labels: store ? [store.replace(LEAD_DECOR, '').trim()] : [],
+      startDate: parseIso(m.querySelector('.tgme_widget_message_date time, time[datetime]')?.getAttribute('datetime')),
+      lastPost: null,
+      replies: null,
+      views: views ? parseCount(views) : null,
+      // Kanalın kendi reklam gönderileri listede görünmesin
+      sticky: /(^|\s)#reklam\b/i.test(text)
+    });
+  }
+  return out;
+}
+
+const HTML_PARSERS = { xenforo: parseXenForo, vbulletin: parseVBulletin, donanimhaber: parseDonanimHaber, telegram: parseTelegram };
 
 function looksLikeFeed(text) {
   return /^\s*(?:<\?xml[^>]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<(rss|feed|rdf:RDF)\b/i.test(text);
@@ -231,6 +282,7 @@ export function detectType(doc) {
   if (doc.querySelector('.structItem--thread')) return 'xenforo';
   if (doc.querySelector('a[id^="thread_title_"]')) return 'vbulletin';
   if (doc.querySelector('.kl-icerik-satir')) return 'donanimhaber';
+  if (doc.querySelector('.tgme_widget_message[data-post]')) return 'telegram';
   return null;
 }
 

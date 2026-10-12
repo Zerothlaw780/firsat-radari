@@ -33,7 +33,7 @@ const PRICE_RE = new RegExp(
   'gi'
 );
 // Fiyatın hemen ardından bunlar geliyorsa o sayı ürün fiyatı değil, eşik/indirim tutarıdır
-const NOT_A_PRICE_AFTER = /^\s*[!)]*\s*(?:'?\s*(?:ye|ya|e|a)\b|ve\s+uzeri|uzeri|uzerine|indirim|kupon(?!\s*kod)|nakit\s*iade|cashback|puan|bonus|hediye|chip)/;
+const NOT_A_PRICE_AFTER = /^\s*[!)]*\s*(?:'?\s*(?:ye|ya|e|a)\b(?!\s*(?:dus|gel|ind))|ve\s+uzeri|uzeri|uzerine|indirim|kupon(?!\s*kod)|nakit\s*iade|cashback|puan|bonus|hediye|chip)/;
 
 /** Başlıktan TL fiyatını çıkarır (yoksa null). Birden fazla aday varsa sonuncusu. */
 export function parsePrice(title) {

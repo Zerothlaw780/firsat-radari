@@ -26,6 +26,16 @@ export const DEFAULT_SOURCES = [
     url: 'https://www.r10.net/sicak-firsatlar/'
   },
   {
+    id: 'pchocasi', name: 'PC Hocası', short: 'PCH', color: '#9b51e0', builtin: true, enabled: true,
+    type: 'xenforo',
+    url: 'https://forum.pchocasi.com.tr/forumlar/sicak-firsatlar.165/?order=post_date&direction=desc'
+  },
+  {
+    id: 'shiftdelete', name: 'ShiftDelete', short: 'SDN', color: '#e2b93b', builtin: true, enabled: false,
+    type: 'xenforo',
+    url: 'https://forum.shiftdelete.net/forumlar/kampanyalar-ve-indirimli-firsat-urunleri.352/?order=post_date&direction=desc'
+  },
+  {
     id: 'dh-bilgisayar', name: 'DH Bilgisayar', short: 'DH', color: '#27ae60', builtin: true, enabled: true,
     type: 'donanimhaber',
     url: 'https://forum.donanimhaber.com/bilgisayar--f598'
@@ -39,6 +49,18 @@ export const DEFAULT_SOURCES = [
     id: 'dh-telefon', name: 'DH Telefon', short: 'DH', color: '#1e8c4e', builtin: true, enabled: false,
     type: 'donanimhaber',
     url: 'https://forum.donanimhaber.com/cep-telefonu-ve-operatorler--f600'
+  },
+  // Telegram kanalları: market/giyim/ev ağırlıklı, gönderilerin çoğu satış ortaklığı (affiliate) bağlantısı
+  {
+    id: 'tg-evekonomi', name: 'evEkonomisi (Telegram)', short: 'EVE', color: '#2d9cdb', builtin: true, enabled: false,
+    type: 'telegram',
+    url: 'https://t.me/s/evEkonomi'
+  },
+  {
+    id: 'tg-firsatmerkezi', name: 'Fırsat Merkezi (Telegram)', short: 'FM', color: '#56ccf2', builtin: true, enabled: false,
+    type: 'telegram',
+    // Kanal adı "DH Sıcak Fırsatlar" ama DonanımHaber'le bağı yok; Fırsat Merkezi'nin gönderilerini aktarıyor
+    url: 'https://t.me/s/donanimhabersicakfirsatlar'
   }
 ];
 
@@ -94,6 +116,12 @@ export function makeSourceId(name, existing) {
   return id;
 }
 
+/** Fiyat başlıkta yoksa ayrıştırıcının verdiği ipucu satırına bak (Telegram gönderileri gibi). */
+function priceOf(p) {
+  // İpucu satırı ("✅ 910 TL") başlıktan daha güvenilir: başlıkta "2.si 1 TL" gibi ifadeler olabiliyor
+  return (p.priceHint ? parsePrice(p.priceHint) : null) ?? parsePrice(p.title);
+}
+
 const KEEP_DAYS = 21;
 const MAX_ITEMS = 800;
 
@@ -132,7 +160,7 @@ export function mergeResults(prevState, results, settings, now = Date.now()) {
           views: p.views ?? old.views,
           lastPost: p.lastPost ?? old.lastPost,
           sticky: !!p.sticky,
-          price: parsePrice(p.title),
+          price: priceOf(p),
           // Başlangıç tarihi biliniyorsa onu kullan; bilinmiyorsa ilk gördüğümüz tarih sabit kalır
           date: p.startDate ?? old.date
         };
@@ -149,7 +177,7 @@ export function mergeResults(prevState, results, settings, now = Date.now()) {
           views: p.views ?? null,
           lastPost: p.lastPost ?? null,
           sticky: !!p.sticky,
-          price: parsePrice(p.title),
+          price: priceOf(p),
           date: p.startDate ?? p.lastPost ?? now,
           firstSeen: now,
           initial

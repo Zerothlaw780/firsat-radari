@@ -83,6 +83,16 @@ const RSS = `<?xml version="1.0" encoding="utf-8"?>
 <item><title>Fazeon X24F182S 180 Hz Monitör 3.369 TL!</title><pubDate>Fri, 25 Sep 2026 19:27:48 +0000</pubDate>
 <link>https://www.technopat.net/sosyal/konu/fazeon.4181841/</link><guid isPermaLink="false">urn:xenforo:thread:4181841</guid><dc:creator>815867</dc:creator></item>
 </channel></rss>`;
+const TG = `<html><head><title>evEkonomisi.net – Telegram</title></head><body>
+<div class="tgme_widget_message_wrap"><div class="tgme_widget_message js-widget_message" data-post="evEkonomi/16238">
+<div class="tgme_widget_message_author"><a class="tgme_widget_message_owner_name"><span>evEkonomisi.net</span></a></div>
+<div class="tgme_widget_message_text js-message_text">ChildGen Mini Hamur Paketi "2.si 1 TL" -<br/><br/>❌ 390 TL<br/>✅ 227 TL<br/>💲 % 42 indirim!<br/>🛍️ Hepsiburada<br/><br/><a href="https://www.evekonomisi.net/git/22407">Ürünü Gör</a></div>
+<div class="tgme_widget_message_footer"><span class="tgme_widget_message_views">62</span><a class="tgme_widget_message_date" href="https://t.me/evEkonomi/16238"><time datetime="2026-10-12T10:44:51+00:00">13:44</time></a></div>
+</div></div>
+<div class="tgme_widget_message_wrap"><div class="tgme_widget_message js-widget_message" data-post="evEkonomi/16239">
+<div class="tgme_widget_message_text js-message_text">#reklam<br/>Bir sponsor duyurusu</div>
+<div class="tgme_widget_message_footer"><a class="tgme_widget_message_date"><time datetime="2026-10-12T10:51:14+00:00">13:51</time></a></div>
+</div></div></body></html>`;
 const FIX = {
   'www.technopat.net': technopat,
   'forum.donanimarsivi.com': donanimarsivi,
@@ -91,7 +101,7 @@ const FIX = {
 };
 
 
-const SITES = /^https:\/\/(www\.technopat\.net|forum\.donanimarsivi\.com|www\.r10\.net|forum\.donanimhaber\.com)\//;
+const SITES = /^https:\/\/(www\.technopat\.net|forum\.donanimarsivi\.com|www\.r10\.net|forum\.donanimhaber\.com|forum\.pchocasi\.com\.tr|t\.me)\//;
 let blockR10 = false;
 const hits = {};
 const step = (name) => console.log('✓', name);
@@ -108,6 +118,8 @@ try {
     const url = route.request().url();
     const host = new URL(url).host;
     hits[host] = (hits[host] || 0) + 1;
+    if (host === 't.me') return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: TG });
+    if (host === 'forum.pchocasi.com.tr') return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: '<html><body>' + xfRow(101112, 'Asus Pa278Cfrv 2560X1440 100Hz Monitör 🔥 Dip Fiyat', 'eticaret', 5000, 0) + '</body></html>' });
     if (url.endsWith('index.rss')) return route.fulfill({ status: 200, contentType: 'application/rss+xml; charset=utf-8', body: RSS });
     if (blockR10 && host === 'www.r10.net') {
       return route.fulfill({ status: 403, contentType: 'text/html', body: '<html><head><title>Just a moment...</title></head><body><div id="challenge-platform"></div></body></html>' });
@@ -136,7 +148,7 @@ try {
   // 1) Kurulumdaki ilk tarama: her şey içe aktarılır, bildirim yok
   await waitRun();
   const s1 = await sw.evaluate(async () => chrome.storage.local.get(['state', 'status']));
-  for (const id of ['technopat', 'donanimarsivi', 'r10', 'dh-bilgisayar']) {
+  for (const id of ['technopat', 'donanimarsivi', 'r10', 'dh-bilgisayar', 'pchocasi']) {
     assert.equal(s1.status[id]?.ok, true, `${id} taranamadı: ${JSON.stringify(s1.status[id])}`);
   }
   assert.equal(s1.status.technopat.type, 'xenforo');
@@ -145,7 +157,7 @@ try {
   const items1 = Object.values(s1.state.items);
   assert.ok(items1.length >= 15, 'ilk taramada yeterli konu yok');
   assert.ok(items1.every(i => i.initial), 'ilk tarama "yeni" sayılmamalı');
-  step(`ilk tarama: ${items1.length} konu, 4 kaynak`);
+  step(`ilk tarama: ${items1.length} konu, 5 kaynak`);
 
   // 2) Takip listesi + yeni konular → bildirim
   await sw.evaluate(async () => {
@@ -189,12 +201,12 @@ try {
   await page.fill('#q', 'monitor');
   await page.waitForTimeout(100);
   const found = await page.$$eval('.deal .title', els => els.map(e => e.innerHTML));
-  assert.equal(found.length, 2, 'Fazeon iki forumda: tek satır olmalı');
+  assert.equal(found.length, 3, 'Fazeon iki forumda tek satır + Lenovo + PC Hocası Asus');
   assert.ok(found.every(h => /<mark>Mon[iı]t[oö]r<\/mark>/i.test(h)), 'Türkçe karakterden bağımsız vurgulama');
   await page.fill('#q', '');
   await page.click('.chip[data-filter="watch"]');
   await page.waitForTimeout(100);
-  assert.equal(await page.$$eval('.deal', els => els.length), 4);
+  assert.equal(await page.$$eval('.deal', els => els.length), 5);
   await page.click('.chip[data-filter="all"]');
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.waitForTimeout(100);
@@ -230,6 +242,14 @@ try {
   assert.equal(t1.type, 'rss');
   assert.equal(t1.count, 2);
   step('RSS kaynağı otomatik algılandı');
+
+  // 5b) Telegram kanalı: tür algılama, fiyat ipucu, #reklam gizleme
+  const t2 = await page.evaluate(() => chrome.runtime.sendMessage({ type: 'testSource', source: { url: 'https://t.me/s/evEkonomi', type: 'auto' } }));
+  assert.equal(t2.ok, true);
+  assert.equal(t2.type, 'telegram');
+  assert.equal(t2.count, 2);
+  assert.deepEqual(t2.sample, ['ChildGen Mini Hamur Paketi "2.si 1 TL"']);
+  step('Telegram kanalı algılandı, reklam gönderisi gizlendi');
 
   // 6) Ayarlar sayfası kaydı popup'a yansıyor mu
   const opt = await ctx.newPage();
